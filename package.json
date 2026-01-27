@@ -6,9 +6,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "functions-framework --target=sendMail --source=functions/sendMail --port=8080",
-    "dev": "functions-framework --target=sendMail --source=functions/sendMail --port=8080",
-    "deploy:sendMail": "gcloud functions deploy sendMail --runtime nodejs20 --trigger-http --allow-unauthenticated --source=functions/sendMail --entry-point=sendMail --env-vars-file=.env.yaml"
+    "start": "functions-framework --target=sendMail --source=. --port=8080",
+    "dev": "functions-framework --target=sendMail --source=. --port=8080",
+    "deploy:sendMail": "gcloud functions deploy sendMail --runtime nodejs20 --trigger-http --allow-unauthenticated --source=. --entry-point=sendMail --env-vars-file=.env.yaml"
   },
   "engines": {
     "node": ">=18.0.0"
