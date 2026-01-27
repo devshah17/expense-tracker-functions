@@ -1,0 +1,27 @@
+<html>
+    <head>
+        <title>Welcome to Expense Tracker</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+            }
+        </style>
+        <script>
+            function verifyEmail() {
+                window.location.href = "{{ verifyUrl }}";
+            }
+        </script>
+    </head>
+    <body>
+        <h1>Welcome to Expense Tracker</h1>
+        <p>Thank you for signing up. Please verify your email by clicking the button below.</p>
+        <a href="{{ verifyUrl }}">Verify Email</a>
+        <p>If you did not sign up for Expense Tracker, please ignore this email.</p>
+        <p>Thank you for using Expense Tracker.</p>
+        <p>Best regards,</p>
+        <p>The Expense Tracker Team</p>
+    </body>
+</html>
