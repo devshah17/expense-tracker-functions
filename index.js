@@ -13,4 +13,4 @@
 // Currently only sendMail is implemented
 // Import and re-export when adding more functions
 
-export { default as sendMail } from "./functions/sendMail/index.js";
+import "./functions/sendMail/index.js";
