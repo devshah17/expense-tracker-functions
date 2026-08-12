@@ -42,28 +42,75 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy Lambda code
+      - name: Create or update Lambda function
         run: |
-          aws lambda update-function-code \
-            --function-name sendMail \
-            --zip-file fileb://sendMail.zip \
-            --region ${{ env.AWS_REGION }}
+          FUNCTION_NAME="sendMail"
+          REGION="${{ env.AWS_REGION }}"
+          ROLE_NAME="lambda-sendMail-role"
 
-      - name: Wait for code update to complete
-        run: |
-          aws lambda wait function-updated \
-            --function-name sendMail \
-            --region ${{ env.AWS_REGION }}
+          # Check if function already exists
+          if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION 2>/dev/null; then
+            echo "Function exists — updating code..."
+            aws lambda update-function-code \
+              --function-name $FUNCTION_NAME \
+              --zip-file fileb://sendMail.zip \
+              --region $REGION
+
+            aws lambda wait function-updated \
+              --function-name $FUNCTION_NAME \
+              --region $REGION
+          else
+            echo "Function does not exist — creating IAM role and Lambda function..."
+
+            # Create IAM execution role if it doesn't exist
+            ROLE_ARN=$(aws iam get-role --role-name $ROLE_NAME --query 'Role.Arn' --output text 2>/dev/null || true)
+            if [ -z "$ROLE_ARN" ]; then
+              ROLE_ARN=$(aws iam create-role \
+                --role-name $ROLE_NAME \
+                --assume-role-policy-document '{
+                  "Version":"2012-10-17",
+                  "Statement":[{
+                    "Effect":"Allow",
+                    "Principal":{"Service":"lambda.amazonaws.com"},
+                    "Action":"sts:AssumeRole"
+                  }]
+                }' \
+                --query 'Role.Arn' --output text)
+
+              aws iam attach-role-policy \
+                --role-name $ROLE_NAME \
+                --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+              echo "Waiting 10s for IAM role to propagate..."
+              sleep 10
+            fi
+
+            echo "Creating Lambda function with role: $ROLE_ARN"
+            aws lambda create-function \
+              --function-name $FUNCTION_NAME \
+              --runtime nodejs20.x \
+              --handler functions/sendMail/index.handler \
+              --role $ROLE_ARN \
+              --zip-file fileb://sendMail.zip \
+              --region $REGION \
+              --environment "Variables={GMAIL_USER=${{ secrets.GMAIL_USER }},GMAIL_PASS=${{ secrets.GMAIL_PASS }}}"
+
+            aws lambda wait function-active \
+              --function-name $FUNCTION_NAME \
+              --region $REGION
+
+            echo "Function created successfully — skipping env update step"
+            echo "SKIP_ENV_UPDATE=true" >> $GITHUB_ENV
+          fi
 
       - name: Update Lambda environment variables
+        if: env.SKIP_ENV_UPDATE != 'true'
         run: |
           aws lambda update-function-configuration \
             --function-name sendMail \
             --environment "Variables={GMAIL_USER=${{ secrets.GMAIL_USER }},GMAIL_PASS=${{ secrets.GMAIL_PASS }}}" \
             --region ${{ env.AWS_REGION }}
 
-      - name: Wait for configuration update to complete
-        run: |
           aws lambda wait function-updated \
             --function-name sendMail \
             --region ${{ env.AWS_REGION }}
