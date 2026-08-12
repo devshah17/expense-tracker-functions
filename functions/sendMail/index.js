@@ -1,11 +1,9 @@
-import functions from "@google-cloud/functions-framework";
 import { sendMail, getTemplate } from "./sendMail.js";
 
 /**
- * HTTP Cloud Function for sending emails
- * Accepts POST requests with email parameters
+ * AWS Lambda handler for sending emails via API Gateway (HTTP API or REST API proxy)
  *
- * Request body:
+ * Expected event body (JSON string):
  * {
  *   "to": "recipient@example.com",           // Required
  *   "subject": "Email Subject",              // Required
@@ -14,33 +12,43 @@ import { sendMail, getTemplate } from "./sendMail.js";
  *   "replacements": {"name": "John", "otp": "123456"}  // Optional, for template
  * }
  */
-functions.http("sendMail", async (req, res) => {
-  // Enable CORS
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
 
-  // Handle preflight request
-  if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return;
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function response(statusCode, body) {
+  return {
+    statusCode,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    body: JSON.stringify(body),
+  };
+}
+
+export async function handler(event) {
+  // Handle CORS preflight
+  if (event.requestContext?.http?.method === "OPTIONS" || event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: CORS_HEADERS, body: "" };
   }
 
   // Only accept POST requests
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed. Use POST." });
-    return;
+  const method = event.requestContext?.http?.method ?? event.httpMethod;
+  if (method !== "POST") {
+    return response(405, { error: "Method not allowed. Use POST." });
   }
 
   try {
-    const { to, subject, body, templateName, replacements } = req.body;
+    // API Gateway passes body as a string; parse it
+    const { to, subject, body, templateName, replacements } =
+      typeof event.body === "string" ? JSON.parse(event.body) : event.body ?? {};
 
     // Validate required fields
     if (!to || !subject) {
-      res.status(400).json({
+      return response(400, {
         error: "Missing required fields: 'to' and 'subject' are required",
       });
-      return;
     }
 
     let emailBody = body;
@@ -50,19 +58,15 @@ functions.http("sendMail", async (req, res) => {
       try {
         emailBody = getTemplate(templateName, replacements || {});
       } catch (error) {
-        res.status(400).json({
-          error: `Template error: ${error.message}`,
-        });
-        return;
+        return response(400, { error: `Template error: ${error.message}` });
       }
     }
 
     // Validate that we have email body
     if (!emailBody) {
-      res.status(400).json({
+      return response(400, {
         error: "Either 'body' or 'templateName' must be provided",
       });
-      return;
     }
 
     // Send the email
@@ -73,16 +77,16 @@ functions.http("sendMail", async (req, res) => {
       consoleMessage: `Email sent to ${to}`,
     });
 
-    res.status(200).json({
+    return response(200, {
       success: true,
       message: "Email sent successfully",
       messageId: info.messageId,
     });
   } catch (error) {
-    console.error("Error in sendMail function:", error);
-    res.status(500).json({
+    console.error("Error in sendMail Lambda handler:", error);
+    return response(500, {
       error: "Failed to send email",
       message: error.message,
     });
   }
-});
+}

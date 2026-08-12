@@ -1,24 +1,27 @@
 # Expense Tracker Functions
 
-A serverless functions repository for hosting multiple Google Cloud Functions for the Expense Tracker application.
+A serverless functions repository hosting multiple AWS Lambda functions for the Expense Tracker application. Deployment is automated via GitHub Actions on every push to `main`.
 
 ## Architecture
 
-This repository uses a modular structure where each function is organized in its own directory under `functions/`. Each function can be deployed independently to Google Cloud Functions.
+Each function lives in its own directory under `functions/` and is deployed as an independent Lambda function fronted by AWS API Gateway.
 
 ```
 expense-tracker-functions/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml          # GitHub Actions — deploys to AWS Lambda on push to main
 ├── functions/
-│   └── sendMail/              # Email sending function
-│       ├── index.js           # Cloud Function HTTP handler
-│       ├── sendMail.js        # Core email logic
-│       └── templates/         # Email HTML templates
+│   └── sendMail/               # Email sending Lambda
+│       ├── index.js            # Lambda handler (exports `handler`)
+│       ├── sendMail.js         # Core email logic (nodemailer)
+│       └── templates/          # Email HTML templates
 │           ├── OTP.html
 │           └── SignUp.html
-├── index.js                   # Main entry point (exports all functions)
+├── index.js                    # Re-exports all Lambda handlers
+├── server.js                   # Local Express dev server (not used in Lambda)
 ├── package.json
-├── .gcloudignore
-└── .env.yaml.example          # Example environment configuration
+└── .env.example                # Example environment configuration
 ```
 
 ## Setup
@@ -31,44 +34,40 @@ npm install
 
 ### 2. Configure Environment Variables
 
-For local development, create a `.env` file:
+Create a `.env` file for local development:
 
 ```bash
-cp .env.yaml.example .env
+cp .env.example .env
 ```
 
-Edit `.env` and add your credentials:
+Add your credentials:
 
-```
+```env
 GMAIL_USER=your-email@gmail.com
-GMAIL_PASS=your-app-password
+GMAIL_PASS=your-app-specific-password
 ```
 
-For Google Cloud deployment, create a `.env.yaml` file:
+### 3. Run Locally
 
 ```bash
-cp .env.yaml.example .env.yaml
+npm run dev      # nodemon with auto-reload
+# or
+npm start        # plain node
 ```
 
-Edit `.env.yaml` with your actual credentials.
+The dev server wraps the Lambda handlers in Express and is available at `http://localhost:8080`.
 
-### 3. Test Locally
-
-Start the Functions Framework locally:
-
-```bash
-npm start
-```
-
-The function will be available at `http://localhost:8080`
+---
 
 ## Available Functions
 
-### SendMail
+### sendMail
 
-Sends emails via Gmail SMTP with support for HTML templates.
+Sends transactional emails via Gmail SMTP with HTML template support.
 
-**Endpoint:** `/sendMail` (POST)
+**Lambda Handler:** `functions/sendMail/index.js` → `handler`
+
+**Endpoint (via API Gateway):** `POST /sendMail`
 
 **Request Body:**
 
@@ -85,114 +84,117 @@ Sends emails via Gmail SMTP with support for HTML templates.
 }
 ```
 
-**Parameters:**
+| Field           | Required | Description                                      |
+|-----------------|----------|--------------------------------------------------|
+| `to`            | ✅       | Recipient email address                          |
+| `subject`       | ✅       | Email subject line                               |
+| `body`          | ⬜       | Raw HTML body (use if `templateName` not given)  |
+| `templateName`  | ⬜       | Template name (e.g. `OTP`, `SignUp`)             |
+| `replacements`  | ⬜       | Key-value pairs for `{{placeholder}}` in template|
 
-- `to` (required): Recipient email address
-- `subject` (required): Email subject
-- `body` (optional): HTML email body
-- `templateName` (optional): Template name (e.g., 'OTP', 'SignUp')
-- `replacements` (optional): Object with key-value pairs for template placeholders
-
-**Example with cURL:**
+**Example with cURL (local):**
 
 ```bash
-# Send with direct HTML body
+# Direct HTML body
 curl -X POST http://localhost:8080/sendMail \
   -H "Content-Type: application/json" \
-  -d '{
-    "to": "test@example.com",
-    "subject": "Test Email",
-    "body": "<h1>Hello World</h1>"
-  }'
+  -d '{"to":"test@example.com","subject":"Hello","body":"<h1>Hi!</h1>"}'
 
-# Send with template
+# With template
 curl -X POST http://localhost:8080/sendMail \
   -H "Content-Type: application/json" \
-  -d '{
-    "to": "test@example.com",
-    "subject": "OTP Verification",
-    "templateName": "OTP",
-    "replacements": {
-      "name": "John Doe",
-      "otp": "123456"
-    }
-  }'
+  -d '{"to":"test@example.com","subject":"Your OTP","templateName":"OTP","replacements":{"name":"John","otp":"123456"}}'
 ```
+
+---
 
 ## Deployment
 
+Deployment is **fully automated** via GitHub Actions. Push to `main` → Lambda is updated.
+
 ### Prerequisites
 
-1. Install [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
-2. Authenticate: `gcloud auth login`
-3. Set your project: `gcloud config set project YOUR_PROJECT_ID`
+1. An AWS Lambda function named **`sendMail`** (Runtime: Node.js 20.x, Handler: `index.handler`)
+2. An AWS API Gateway (HTTP API or REST API) linked to the Lambda function
+3. The following **GitHub repository secrets** configured:
 
-### Deploy SendMail Function
+| Secret                  | Description                              |
+|-------------------------|------------------------------------------|
+| `AWS_ACCESS_KEY_ID`     | IAM user access key with Lambda permissions |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key                      |
+| `AWS_REGION`            | AWS region (e.g. `us-east-1`)            |
+| `GMAIL_USER`            | Gmail address used for sending           |
+| `GMAIL_PASS`            | Gmail app-specific password              |
+
+### Required IAM Permissions
+
+The IAM user used by GitHub Actions needs at minimum:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "lambda:UpdateFunctionCode",
+    "lambda:UpdateFunctionConfiguration",
+    "lambda:GetFunctionConfiguration"
+  ],
+  "Resource": "arn:aws:lambda:<region>:<account-id>:function:sendMail"
+}
+```
+
+### First-time Lambda Setup
+
+If the Lambda function does not exist yet, create it once via the AWS Console or CLI:
 
 ```bash
-npm run deploy:sendMail
+# Create the function (first time only)
+aws lambda create-function \
+  --function-name sendMail \
+  --runtime nodejs20.x \
+  --handler index.handler \
+  --role arn:aws:iam::<account-id>:role/<lambda-execution-role> \
+  --zip-file fileb://sendMail.zip \
+  --environment "Variables={GMAIL_USER=you@gmail.com,GMAIL_PASS=yourpass}"
 ```
 
-Or manually:
+After the first deploy, all subsequent updates are handled automatically by GitHub Actions.
 
-```bash
-gcloud functions deploy sendMail \
-  --runtime nodejs20 \
-  --trigger-http \
-  --allow-unauthenticated \
-  --source=functions/sendMail \
-  --entry-point=sendMail \
-  --env-vars-file=.env.yaml
-```
-
-After deployment, you'll receive a URL like:
-
-```
-https://REGION-PROJECT_ID.cloudfunctions.net/sendMail
-```
+---
 
 ## Adding New Functions
 
-1. Create a new directory under `functions/`: `functions/yourFunction/`
-2. Create `index.js` with your Cloud Function handler
-3. Add any supporting files
-4. Export the function in the main `index.js`
-5. Add a deployment script to `package.json`
-
-**Example:**
+1. Create `functions/yourFunction/index.js` exporting a `handler`:
 
 ```javascript
 // functions/yourFunction/index.js
-import functions from "@google-cloud/functions-framework";
-
-functions.http("yourFunction", async (req, res) => {
-  res.json({ message: "Hello from yourFunction!" });
-});
+export async function handler(event) {
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "Hello from yourFunction!" }),
+  };
+}
 ```
 
-```json
-// package.json - add script
-"deploy:yourFunction": "gcloud functions deploy yourFunction --runtime nodejs20 --trigger-http --source=functions/yourFunction --entry-point=yourFunction"
+2. Re-export it in the root `index.js`:
+
+```javascript
+export { handler as yourFunction } from "./functions/yourFunction/index.js";
 ```
+
+3. Add a route to `server.js` for local dev.
+
+4. Add a new job in `.github/workflows/deploy.yml` to deploy the new Lambda.
+
+---
 
 ## Environment Variables
 
-Set environment variables in Google Cloud Functions:
+Environment variables are injected into Lambda at deploy time by the GitHub Actions workflow using `aws lambda update-function-configuration`.
 
-**Option 1: Using .env.yaml (recommended)**
+For local development, use a `.env` file loaded by `dotenv` via `server.js`.
 
-Create `.env.yaml` and deploy with `--env-vars-file=.env.yaml`
-
-**Option 2: Using Cloud Console**
-
-Set environment variables in the Google Cloud Console under the function's configuration.
-
-**Option 3: Using gcloud CLI**
-
-```bash
-gcloud functions deploy sendMail \
-  --set-env-vars GMAIL_USER=your-email@gmail.com,GMAIL_PASS=your-app-password
-```
+---
 
 ## License
 

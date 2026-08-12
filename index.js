@@ -1,16 +1,12 @@
 /**
- * Main entry point for Google Cloud Functions
- * Each function is deployed independently but can be exported here for reference
+ * Main entry point — re-exports Lambda handlers for reference.
+ * Each function is deployed as its own Lambda function.
  *
- * To deploy a function:
- * npm run deploy:sendMail
+ * To run locally:
+ *   npm run dev         (nodemon + Express dev server on port 8080)
  *
- * To test locally:
- * npm start
+ * Deployment is handled automatically by GitHub Actions on push to main.
  */
 
-// Export all functions here as they are added
-// Currently only sendMail is implemented
-// Import and re-export when adding more functions
-
-import "./functions/sendMail/index.js";
+// Re-export all Lambda handlers
+export { handler as sendMail } from "./functions/sendMail/index.js";
