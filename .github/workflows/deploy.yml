@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
 
 jobs:
   deploy-send-mail:
@@ -26,7 +30,7 @@ jobs:
       - name: Create deployment ZIP
         run: |
           zip -r sendMail.zip \
-            functions/sendMail \
+            functions \
             index.js \
             package.json \
             node_modules
@@ -36,28 +40,38 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy to Lambda
+      - name: Deploy Lambda code
         run: |
           aws lambda update-function-code \
             --function-name sendMail \
-            --zip-file fileb://sendMail.zip
+            --zip-file fileb://sendMail.zip \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for code update to complete
+        run: |
+          aws lambda wait function-updated \
+            --function-name sendMail \
+            --region ${{ env.AWS_REGION }}
 
       - name: Update Lambda environment variables
         run: |
           aws lambda update-function-configuration \
             --function-name sendMail \
-            --environment "Variables={GMAIL_USER=${{ secrets.GMAIL_USER }},GMAIL_PASS=${{ secrets.GMAIL_PASS }}}"
+            --environment "Variables={GMAIL_USER=${{ secrets.GMAIL_USER }},GMAIL_PASS=${{ secrets.GMAIL_PASS }}}" \
+            --region ${{ env.AWS_REGION }}
 
-      - name: Wait for Lambda update to complete
+      - name: Wait for configuration update to complete
         run: |
           aws lambda wait function-updated \
-            --function-name sendMail
+            --function-name sendMail \
+            --region ${{ env.AWS_REGION }}
 
       - name: Verify deployment
         run: |
           aws lambda get-function-configuration \
             --function-name sendMail \
+            --region ${{ env.AWS_REGION }} \
             --query '[FunctionName, Runtime, Handler, LastModified]' \
             --output table
