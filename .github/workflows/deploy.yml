@@ -89,7 +89,9 @@ jobs:
             aws lambda create-function \
               --function-name $FUNCTION_NAME \
               --runtime nodejs20.x \
-              --handler functions/sendMail/index.handler \
+              --handler index.handler \
+              --timeout 30 \
+              --memory-size 256 \
               --role $ROLE_ARN \
               --zip-file fileb://sendMail.zip \
               --region $REGION \
@@ -98,16 +100,15 @@ jobs:
             aws lambda wait function-active \
               --function-name $FUNCTION_NAME \
               --region $REGION
-
-            echo "Function created successfully — skipping env update step"
-            echo "SKIP_ENV_UPDATE=true" >> $GITHUB_ENV
           fi
 
-      - name: Update Lambda environment variables
-        if: env.SKIP_ENV_UPDATE != 'true'
+      - name: Update Lambda configuration (Handler, Timeout, Memory, Env)
         run: |
           aws lambda update-function-configuration \
             --function-name sendMail \
+            --handler index.handler \
+            --timeout 30 \
+            --memory-size 256 \
             --environment "Variables={GMAIL_USER=${{ secrets.GMAIL_USER }},GMAIL_PASS=${{ secrets.GMAIL_PASS }}}" \
             --region ${{ env.AWS_REGION }}
 

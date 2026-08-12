@@ -35,14 +35,19 @@ export async function handler(event) {
 
   // Only accept POST requests
   const method = event.requestContext?.http?.method ?? event.httpMethod;
-  if (method !== "POST") {
+  if (method && method !== "POST") {
     return response(405, { error: "Method not allowed. Use POST." });
   }
 
   try {
-    // API Gateway passes body as a string; parse it
+    // API Gateway passes body as a string (possibly base64 encoded)
+    let rawBody = event.body;
+    if (event.isBase64Encoded && typeof rawBody === "string") {
+      rawBody = Buffer.from(rawBody, "base64").toString("utf-8");
+    }
+
     const { to, subject, body, templateName, replacements } =
-      typeof event.body === "string" ? JSON.parse(event.body) : event.body ?? {};
+      typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody ?? {};
 
     // Validate required fields
     if (!to || !subject) {
@@ -90,3 +95,6 @@ export async function handler(event) {
     });
   }
 }
+
+export default handler;
+

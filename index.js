@@ -8,5 +8,8 @@
  * Deployment is handled automatically by GitHub Actions on push to main.
  */
 
+import { handler } from "./functions/sendMail/index.js";
+
 // Re-export all Lambda handlers
-export { handler as sendMail } from "./functions/sendMail/index.js";
+export { handler, handler as sendMail };
+export default handler;
