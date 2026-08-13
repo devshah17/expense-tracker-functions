@@ -71,6 +71,16 @@ export async function sendMail({ subject, body, to, consoleMessage }) {
     html: body,
   };
 
+  if (body && body.includes("cid:dym-logo")) {
+    mailOptions.attachments = [
+      {
+        filename: "dym-logo.png",
+        path: path.join(__dirname, "templates", "dym_logo_small.png"),
+        cid: "dym-logo",
+      },
+    ];
+  }
+
   try {
     const info = await transporter.sendMail(mailOptions);
     if (consoleMessage) {
