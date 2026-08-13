@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>New Activity Alert</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background-color: #f59e0b;
+            /* amber-500 */
+            padding: 20px;
+            text-align: center;
+            color: #ffffff;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .content {
+            padding: 30px;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .alert-box {
+            background-color: #fffbeb;
+            /* amber-50 */
+            border-left: 4px solid #f59e0b;
+            /* amber-500 */
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .footer {
+            background-color: #f1f5f9;
+            padding: 15px;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Activity Alert - DYM</h1>
+        </div>
+        <div class="content">
+            <p>Hello Admin,</p>
+            <p>A new activity has been logged in the DYM Tracker Application:</p>
+
+            <div class="alert-box">
+                {{message}}
+            </div>
+
+            <p>You can view all logs in the <a href="https://dym-tracker.vercel.app/admin"
+                    style="color: #f59e0b; text-decoration: none; font-weight: bold;">Admin Dashboard</a>.</p>
+        </div>
+        <div class="footer">
+            &copy; 2026 Dholikui Yuvak Mandal. All rights reserved.
+        </div>
+    </div>
+</body>
+
+</html>
